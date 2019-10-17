@@ -1,3 +1,4 @@
+#该模型是基于lstm预测值与实际值偏差在【avg-std*3，avg+std*3】范围以外作为异常值得判断，每BATCH_SIZE一组计算方差和均值，其中范围标准差倍数需要设置
 from __future__ import absolute_import, division, print_function
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] ='3'
@@ -41,6 +42,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 
+
+#使用的是温度测试数据集
 mpl.rcParams['figure.figsize'] = (8, 6)
 mpl.rcParams['axes.grid'] = False
 
@@ -79,7 +82,7 @@ uni_train_std = uni_data[:TRAIN_SPLIT].std()
 uni_data = (uni_data-uni_train_mean)/uni_train_std
 
 tf.random.set_seed(13)
-univariate_past_history = 20
+univariate_past_history = 20  #调整历史窗口大小
 univariate_future_target = 0
 
 #univariate_data(dataset, start_index, end_index, history_size, target_size):
@@ -137,19 +140,29 @@ train_univariate = train_univariate.cache().shuffle(BUFFER_SIZE).batch(BATCH_SIZ
 val_univariate = tf.data.Dataset.from_tensor_slices((tf.cast(x_val_uni,dtype=tf.float32), tf.cast(y_val_uni,dtype=tf.float32)))
 val_univariate = val_univariate.batch(BATCH_SIZE).repeat()
 
+#该模型是基于lstm预测值与实际值偏差在【avg-std*3，avg+std*3】范围以外作为异常值得判断，每BATCH_SIZE一组计算方差和均值，其中范围标准差倍数需要设置
+#设置异常方差的倍数范围
+std_time=6
+#设置训练或者执行异常数值检测
 train=False
 if train==True:
     #3层lstm
     simple_lstm_model = tf.keras.models.Sequential([
         tf.keras.layers.LSTM(125, input_shape=x_train_uni.shape[-2:], return_sequences=True),
-        tf.keras.layers.LSTM(125, input_shape=[20,125], return_sequences=True),
-        tf.keras.layers.LSTM(125, input_shape=[20,125]),
+        tf.keras.layers.LSTM(125, input_shape=[univariate_past_history,125], return_sequences=True),
+        tf.keras.layers.LSTM(125, input_shape=[univariate_past_history,125]),
         tf.keras.layers.Dense(1)
     ])
     #2层lstm
     # simple_lstm_model = tf.keras.models.Sequential([
     #     tf.keras.layers.LSTM(125, input_shape=x_train_uni.shape[-2:], return_sequences=True),
-    #     tf.keras.layers.LSTM(125, input_shape=[20,125]),
+    #     tf.keras.layers.LSTM(125, input_shape=[univariate_past_history,125]),
+    #     tf.keras.layers.Dense(1)
+    # ])
+
+    #1层lstm
+    # simple_lstm_model = tf.keras.models.Sequential([
+    #     tf.keras.layers.LSTM(125, input_shape=x_train_uni.shape[-2:]),
     #     tf.keras.layers.Dense(1)
     # ])
     simple_lstm_model.compile(optimizer='adam', loss='mae')
@@ -179,8 +192,8 @@ else:
         #计算3倍标准差以内
         avg=np.mean(cha)
         std=np.std(cha)
-        up=avg+5*std
-        down=avg-5*std
+        up=avg+std_time*std
+        down=avg-std_time*std
         list_value=zip(index_list,cha)
         erros_sample=[x[0] for x in list_value if x[1]>up or x[1]<down]
         if erros_sample.__len__()>0:
