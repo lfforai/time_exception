@@ -215,8 +215,8 @@ class ExampleOp : public OpKernel
     	 //printf("value:%d,%d \n",window_size,feature);
     	 for (int64 b = start; b < limit; ++b){
     		 oo_point=new LOF_one<T>((int)b,k,dims,(T*)input_data);
-    		 cout<<"b:"<<oo_point->value[b]<<endl;
-    		 oo_point->printvector(oo_point->k_distance_neighborhood((int)b));
+    		 //cout<<"b:"<<oo_point->value[b]<<endl;
+    		 //oo_point->printvector(oo_point->k_distance_neighborhood((int)b));
     		 T v=oo_point->local_outlier_factor();
     		 output_data[(int)b]=(T)v;
     		 delete oo_point;

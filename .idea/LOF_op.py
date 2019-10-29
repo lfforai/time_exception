@@ -1,7 +1,7 @@
 import tensorflow as tf
 import numpy as np
 import time
-
+#使用LOF局部异常值检验
 start = time.clock()
 tf.debugging.set_log_device_placement(True)
 tf.config.set_soft_device_placement(True)
@@ -22,6 +22,5 @@ a=MyAddTest()
 a.testMyAdd()
 
 #当中是你的程序
-elapsed = (time.clock() - start)
-print("Time used:",elapsed)
+print("大于1的可能是异常值")
 
