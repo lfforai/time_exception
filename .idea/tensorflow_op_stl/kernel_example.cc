@@ -20,7 +20,8 @@ REGISTER_OP("Example")
     .Input("n_l:int32")//第三步骤移动平滑长度np
     .Input("n_t:int32")//第三，六步骤loess平滑参数nt
     .Input("r: T")//loess r,exp(-（x-x1）/2×r^2)
-
+    .Input("wai: int32")//外循环次数
+    .Input("nei: int32")//内循环次数
     .Output("outputt:T")
     .Output("outputs:T")
     .Output("outputr:T");
@@ -145,20 +146,26 @@ class ExampleOp : public OpKernel
 	const Tensor& nl_tensor = context->input(3);//第三步骤loess平滑参数n1
 	const Tensor& nt_tensor = context->input(4);//第三步骤loess平滑参数n1
 	const Tensor& r_tensor = context->input(5);//第三步骤loess平滑参数n1
+	const Tensor& wai_tensor = context->input(6);//第三步骤loess平滑参数n1
+	const Tensor& nei_tensor = context->input(7);//第三步骤loess平滑参数n1
 
     int ns=(int)(ns_tensor.flat<int>().data()[0]);//必须是奇数
     int np=(int)(np_tensor.flat<int>().data()[0]);
     int nl=(int)(nl_tensor.flat<int>().data()[0]);//必须是奇数
     int nt=(int)(nt_tensor.flat<int>().data()[0]);//必须是奇数
     T r=r_tensor.flat<T>().data()[0];
+    int wai=wai_tensor.flat<int>().data()[0];
+    int nei=nei_tensor.flat<int>().data()[0];
 
     // Do the computation,tensor must be odd
     OP_REQUIRES(context, ns%2==1,
-                errors::InvalidArgument("ns must be odd"));
+                errors::InvalidArgument("ns must be odd！"));
     OP_REQUIRES(context, nl%2==1,
-                  errors::InvalidArgument("nl must be odd"));
+                  errors::InvalidArgument("nl must be odd！"));
     OP_REQUIRES(context, nt%2==1,
-                   errors::InvalidArgument("nt must be odd"));
+                   errors::InvalidArgument("nt must be odd!"));
+    OP_REQUIRES(context, ((int)(totallenght/np))*np==totallenght,
+                       errors::InvalidArgument("被检测数组的长度是必须是周期np的整数倍！"));
 
     //output tensor setup
     int dims[1];
@@ -334,7 +341,7 @@ class ExampleOp : public OpKernel
     		 //cout<<"b:"<<start<<"|"<<(limit-start)<<endl;
     		 for(int j=0;j<np;++j)
     		    {
-    			 C_v_2np_EMA1[(int)b]=C_v_2np_EMA1[(int)b]+C_v_2np[(int)(b+j)];
+    			 C_v_2np_EMA1[(int)b]+=C_v_2np[(int)(b+j)];
 			    }
     		 C_v_2np_EMA1[(int)b]=C_v_2np_EMA1[(int)b]/((T)np);
     	 };
@@ -372,9 +379,9 @@ class ExampleOp : public OpKernel
     C_v_sub_loess=(T*)malloc(C_v_sub_num*sizeof(T));
     neig_w_sub=(T*)malloc(C_v_sub_num*sizeof(T));
 
-    for (int w = 0; w< 3; ++w){//外循环
+    for (int w = 0; w<wai; ++w){//外循环
 		//内循环
-		for (int i = 0; i< 3; ++i){
+		for (int i = 0; i<nei; ++i){
 			//step 1
 			if(i==0)
 			{memcpy(C_v,Y_v,totallenght*sizeof(T));}
@@ -385,7 +392,7 @@ class ExampleOp : public OpKernel
 				//C_v=>C_v_sub
 				for(int k = 0; k < C_v_sub_num; ++k){
 					 C_v_sub[k]=C_v[j+np*k];
-					 neig_w_sub[k]=neig_w[j+np+k];
+					 neig_w_sub[k]=neig_w[j+np*k];
 				}
 
 				//C_v_sub=>C_v_sub_loess
@@ -399,14 +406,14 @@ class ExampleOp : public OpKernel
 					C_v_2np[np*(k+1)+j]=C_v_sub_loess[k];
 				}
 			}
-
+//			if(i==0)
+//			  {for(int w=600;w<650;++w)
+//			    cout<<"|"<< C_v_2np[w]<<endl;}
 			//step3
 			memcpy(C_v_o,C_v_2np+np,totallenght*sizeof(T));
 			Shard(worker_threads.num_threads, worker_threads.workers,
 						totallenght+(np+1), shard_cost, shard_EMA_np1);
-	//		if(i==0)
-	//			{for(int w=0;w<100;++w)
-	//	          cout<<"|"<<C_v_2np_EMA1[w+100]<<endl;}
+
 			Shard(worker_threads.num_threads, worker_threads.workers,
 						totallenght+2, shard_cost, shard_EMA_np2);
 
@@ -423,13 +430,10 @@ class ExampleOp : public OpKernel
 			//step6
 			Shard(worker_threads.num_threads, worker_threads.workers,
 												totallenght, shard_cost, shard_loess6);
+
+			tensor_sub((T*)(Y_v),S_v,outputr,totallenght);
+			tensor_sub(outputr,T_v,outputr,totallenght);
 		}
-
-		memcpy(outputs,S_v,(totallenght)*sizeof(T));
-		memcpy(outputt,T_v,(totallenght)*sizeof(T));
-		tensor_sub((T*)(Y_v),S_v,outputr,totallenght);
-		tensor_sub(outputr,T_v,outputr,totallenght);
-
 	    //R
 		vector<T> median_v;
 		for(int n = 0; n < totallenght; ++n) {
@@ -450,6 +454,8 @@ class ExampleOp : public OpKernel
 		   neig_w[n]=B_fun(abs(outputr[n])/h);
 		}
     }//外循环
+	memcpy(outputs,S_v,(totallenght)*sizeof(T));
+	memcpy(outputt,T_v,(totallenght)*sizeof(T));
   }
 };
 

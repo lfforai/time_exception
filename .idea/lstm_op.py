@@ -75,7 +75,7 @@ import pandas as pd
 # print(uni_data.head())
 
 
-df = pd.read_excel("C://Users//Administrator//Documents//WeChat Files//yeshimygod//FileStorage//File//2019-10//test.xlsx",dtype={'siteZoonId':str},parse_dates=['rowkeyTime'])
+df = pd.read_excel("/lf_tool/data/123456.xls",dtype={'siteZoonId':str},parse_dates=['rowkeyTime'])
 # total_df=df['flowCur']
 # total_len=df.__len__()
 # total_df.index=df['rowkeyTime']
@@ -83,7 +83,7 @@ df = pd.read_excel("C://Users//Administrator//Documents//WeChat Files//yeshimygo
 # total_mean =total_data[:total_len].mean()
 # total_std = total_data[:total_len].std()
 # total_data = (total_data-uni_train_mean)/uni_train_std
-street='bhjsl_dma_zone_l4'
+street='jaxq_dma_zone_l4'
 uni_data = df[df['siteZoonId']==street]['flowCur']
 uni_data.index = df[df['siteZoonId']==street]['rowkeyTime']
 print(uni_data.head())
@@ -92,9 +92,9 @@ print(uni_data.head())
 uni_data.plot(subplots=True)
 uni_data = uni_data.values
 TRAIN_SPLIT = 400
-uni_train_mean = uni_data[:TRAIN_SPLIT].mean()
-uni_train_std = uni_data[:TRAIN_SPLIT].std()
-uni_data = (uni_data-uni_train_mean)/uni_train_std
+# uni_train_mean = uni_data[:TRAIN_SPLIT].mean()
+# uni_train_std = uni_data[:TRAIN_SPLIT].std()
+# uni_data = (uni_data-uni_train_mean)/uni_train_std
 
 tf.random.set_seed(13)
 univariate_past_history = 20  #调整历史窗口大小
@@ -196,7 +196,7 @@ if train==True:
     # ])
     simple_lstm_model.compile(optimizer='adam', loss='mae')
     EVALUATION_INTERVAL = 50
-    EPOCHS = 20
+    EPOCHS = 50
     # simple_lstm_model.fit(train_univariate, epochs=EPOCHS,
     #                       steps_per_epoch=EVALUATION_INTERVAL,
     #                       validation_data=val_univariate, validation_steps=50)
@@ -212,11 +212,11 @@ if train==True:
         # plot = show_plot([x[0].numpy(), y[0].numpy(),
         #                   simple_lstm_model.predict(x)[0]], 0, 'Simple LSTM model')
         # plot.show()
-    simple_lstm_model.save('D:\data\model_par\path_to_my_model.h5')
+    simple_lstm_model.save('/lf_tool/data/path_to_my_model.h5')
 
 else:
     #绝对偏差
-    new_model = keras.models.load_model('D:\data\model_par\path_to_my_model.h5')
+    new_model = keras.models.load_model('/lf_tool/data/path_to_my_model.h5')
     print()
     val_univariate = tf.data.Dataset.from_tensor_slices((tf.cast(x_val_uni,dtype=tf.float32), tf.cast(y_val_uni,dtype=tf.float32))).batch(BATCH_SIZE,drop_remainder=True)
     list_var_mean=[]
@@ -230,13 +230,13 @@ else:
         pre=new_model.predict(x)
         pre=np.reshape(pre,[-1,])
         old=y.numpy()
-        cha=(pre-old)/old  #Relative
+        # cha=(pre-old)/old  #Relative
         # rint(pre-old)
         if absolute==True:
            cha=pre-old
         #计算3倍标准差以内
-        total_mean=total_mean*0.8+np.mean(cha)*0.2
-        total_std=total_std*0.8+np.std(cha)*0.2
+        total_mean=total_mean*0.5+np.mean(cha)*0.5
+        total_std=total_std*0.5+np.std(cha)*0.5
         up=total_mean+std_time*total_std
         down=total_mean-std_time*total_std
         # print(up)
